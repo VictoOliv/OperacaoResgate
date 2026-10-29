@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function logado() { return request.auth != null; }
+    function pistaValida() {
+      return request.resource.data.autorId == request.auth.uid
+        && request.resource.data.mensagem is string
+        && request.resource.data.mensagem.size() > 0;
+    }
+    match /ocorrencias/{ocorrenciaId} {
+      allow read: if logado();
+      allow create: if logado()
+        && request.resource.data.autorId == request.auth.uid
+        && request.resource.data.resolvido == false
+        && request.resource.data.titulo is string
+        && request.resource.data.titulo.size() > 0
+        && request.resource.data.local is string
+        && request.resource.data.local.size() > 0;
+      allow update: if logado()
+        && resource.data.autorId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolvido']);
+
+      match /pistas/{pistaId} {
+        allow read: if logado();
+        allow create: if logado() && pistaValida();
+      }
+    }
+
+    match /pistas/{pistaId} {
+      allow read: if logado();
+      allow create: if logado() && pistaValida()
+        && exists(/databases/$(database)/documents/ocorrencias/$(request.resource.data.ocorrenciaId));
+    }
+  }
+}
